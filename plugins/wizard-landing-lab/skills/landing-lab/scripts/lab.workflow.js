@@ -1,76 +1,76 @@
 export const meta = {
   name: 'landing-lab',
-  description: 'The whole landing lab loop: brief and questions, then plan, build and wait for the owner, round after round until a winner',
+  description: 'Toată bucla laboratorului: brief și întrebări, apoi idei, construcție și așteptarea proprietarului, rundă după rundă până la câștigătoare',
   phases: [
-    { title: 'Ideate', detail: 'questions for the owner, then each round planned from the brief, answers, files and every past rating' },
-    { title: 'Build', detail: 'one builder per page, verified at desktop and mobile size' },
-    { title: 'Wait', detail: 'wait for the owner in the dashboard: brief, answers, then each round\'s feedback' },
+    { title: 'Idei', detail: 'întrebările pentru proprietar, apoi planul fiecărei runde din brief, răspunsuri, fișiere și toate notele de până acum' },
+    { title: 'Construcție', detail: 'câte un constructor pe pagină, verificat pe calculator și pe telefon' },
+    { title: 'Așteptare', detail: 'așteaptă proprietarul în dashboard: brief-ul, răspunsurile, apoi feedback-ul fiecărei runde' },
   ],
 }
 
-// args: { workspace, port, skill_dir, start = 1 }  start = the first round still to build
+// args: { workspace, port, skill_dir, start = 1 }  start = prima rundă care nu e construită încă
 const WS = args.workspace
 const WAIT = `${args.skill_dir}/scripts/wait.py`
 const SHOT = `uv run ${args.skill_dir}/scripts/shot.py`
 const BASE = `http://localhost:${args.port}`
 const START = args.start || 1
 
-// The script owns the patience: each waiter repeats a bounded wait.py call for up to ~1 hour, then reports back and the loop
-// starts another. One agent per hour, not per call: a fresh agent's ~56k-token context is the cost, a repeat within it is cheap.
-// An agent that gives up early just reports "not yet", so the owner's answer can never be skipped.
+// Răbdarea o ține scriptul: fiecare agent de așteptare repetă un wait.py limitat timp de ~1 oră, apoi raportează, iar bucla
+// pornește altul. Un agent pe oră, nu pe apel: contextul unui agent nou (~56k tokeni) e costul, o repetare în el e ieftină.
+// Un agent care renunță mai devreme raportează doar „încă nu”, deci răspunsul proprietarului nu poate fi sărit.
 async function waitFor(file, fields, phaseTitle) {
   const schema = {
     type: 'object',
-    properties: { found: { type: 'boolean', description: 'true only if wait.py printed the file and exited 0' }, ...fields },
+    properties: { found: { type: 'boolean', description: 'true doar dacă wait.py a afișat fișierul și a ieșit cu codul 0' }, ...fields },
     required: ['found'],
   }
   for (let attempt = 1; ; attempt++) {
-    const r = await agent(`Run exactly this command with the Bash tool, timeout 600000, NOT in the background:
+    const r = await agent(`Rulează exact comanda asta cu unealta Bash, timeout 600000, NU în fundal:
 uv run --quiet ${WAIT} ${WS}/${file} 540
-Exit code 2 means the file has not appeared yet: run the same command again, up to 6 runs in total, saying nothing in between.
-Exit code 0 means it printed the file's JSON: stop and return {"found": true} plus the requested fields read from that JSON.
-If all 6 runs exit 2, return {"found": false}.
-Do not create, edit or delete any file.`,
-      { label: `wait:${file}#${attempt}`, phase: phaseTitle, schema, model: 'haiku', effort: 'low' })
+Codul de ieșire 2 înseamnă că fișierul nu a apărut încă: rulează aceeași comandă din nou, de cel mult 6 ori în total, fără să scrii nimic între rulări.
+Codul de ieșire 0 înseamnă că a afișat JSON-ul fișierului: oprește-te și întoarce {"found": true} plus câmpurile cerute, citite din acel JSON.
+Dacă toate cele 6 rulări ies cu 2, întoarce {"found": false}.
+Nu crea, nu modifica și nu șterge niciun fișier.`,
+      { label: `așteptare:${file}#${attempt}`, phase: phaseTitle, schema, model: 'haiku', effort: 'low' })
     if (r?.found) return r
-    log(`Still waiting for ${file} (about ${attempt} h)`)
+    log(`Încă aștept ${file} (de aproximativ ${attempt} h)`)
   }
 }
 
-const LANG = 'Language: the owner reads the dashboard in Romanian, so everything written for the owner (questions, plan summary, page titles, idea, mechanics, needs, your final report) is in Romanian with correct diacritics. The landing pages themselves are written in the language of their audience per the brief, which may not be Romanian.'
+const LANG = 'Limba: proprietarul citește dashboard-ul în română, deci tot ce scrii pentru el (întrebări, rezumatul planului, titlurile paginilor, ideea, mecanicile, needs, raportul tău final) e în română, cu diacritice corecte. Paginile de landing sunt scrise în limba publicului lor, după brief, care poate să nu fie româna.'
 
 const SOURCES = `
-Everything about this project is in the lab workspace ${WS} — read it, do not rely on any other project files unless the brief points at them:
-- brief.json: the owner's brief (product, audience, offer, action, form fields, true claims, forbidden claims, brand, tone, references, traffic = where visitors arrive, per_round, notes) and files[] ({path, name, note, use: "page" | "reference"}).
-- answers.json (may be missing): answers to follow-up questions; questions.json has the questions.
-- uploads/: every uploaded file; a file's path "/uploads/x" is uploads/x on disk. Look at every image with the Read tool, read PDFs/docs too. Files with use "page" may appear in designs; "reference" files are inspiration only.
-- rounds/<n>/plan.json, rounds/<n>/<slug>/meta.json + desktop.png/mobile.png, rounds/<n>/feedback.json: previous rounds and the owner's feedback (rating love/maybe/no, notes, reference files per page and per round, general notes). A round without feedback.json was not rated — do not invent feedback for it.
-- If the server was started with an assets folder, its images are at ${BASE}/assets/<name> (GET ${BASE}/api/state lists them under "assets").
+Tot ce ține de proiect e în dosarul laboratorului, ${WS}. Citește-l și nu te baza pe alte fișiere ale proiectului decât dacă brief-ul trimite la ele:
+- brief.json: brief-ul proprietarului (product, audience, offer, action, form_fields, true_claims, forbidden, brand, tone, references, traffic = de unde vin vizitatorii, per_round, notes) și files[] ({path, name, note, use: "page" | "reference"}).
+- answers.json (poate lipsi): răspunsurile la întrebări; questions.json conține întrebările.
+- uploads/: toate fișierele încărcate; calea "/uploads/x" e uploads/x pe disc. Uită-te la fiecare imagine cu unealta Read și citește și PDF-urile sau documentele. Fișierele cu use "page" pot apărea în design; cele cu "reference" sunt doar inspirație.
+- rounds/<n>/plan.json, rounds/<n>/<slug>/meta.json + desktop.png/mobile.png, rounds/<n>/feedback.json: rundele anterioare și feedback-ul proprietarului (rating love/maybe/no, note, fișiere de referință pe pagină și pe rundă, note generale). O rundă fără feedback.json nu a fost notată: nu inventa feedback pentru ea.
+- Dacă serverul a fost pornit cu un dosar de imagini, ele sunt la ${BASE}/assets/<nume> (GET ${BASE}/api/state le listează la "assets").
 ${LANG}
 `
 
 const CRAFT = `
-Landing-page craft (defaults; anything in the brief or feedback overrides them):
-- One page, one action. The action's form or button is the focal point: on desktop it is visually dominant and stays reachable; on mobile it comes early.
-- Buttons obviously look like buttons (solid fill, verb label, generous size, hover + visible focus). The next step is always obvious.
-- Accessible: WCAG AA contrast, visible labels on every input, focus rings, 44px tap targets, semantic headings, logical tab order.
-- Direct-response mechanics (urgency, scarcity, social proof, risk reversal, price anchoring, progress, deadlines) ONLY when true per the brief. Never invent numbers, reviews, testimonials, guarantees or resetting timers. Anything that needs data or backend that does not exist goes in meta.json "needs".
-- Never use a claim from the "forbidden" list. When unsure whether a claim is true, leave it out.
-- Copy is real and specific, never lorem ipsum.
+Meseria paginii de landing (reguli implicite; orice spune brief-ul sau feedback-ul are prioritate):
+- O pagină, o acțiune. Formularul sau butonul acțiunii e punctul central: pe calculator domină vizual și rămâne la îndemână; pe telefon apare devreme.
+- Butoanele arată clar a butoane (fundal plin, verb în etichetă, mărime generoasă, hover și focus vizibil). Pasul următor e mereu evident.
+- Accesibilitate: contrast WCAG AA, etichete vizibile la fiecare câmp, contur la focus, zone de atingere de 44px, titluri semantice, ordine logică la Tab.
+- Mecanici de vânzare directă (urgență, raritate, dovadă socială, garanție, ancorare de preț, progres, termene) DOAR când sunt adevărate după brief. Nu inventa niciodată cifre, recenzii, testimoniale, garanții sau cronometre care se resetează. Orice are nevoie de date sau backend care nu există merge în "needs" din meta.json.
+- Nu folosi niciodată o afirmație din lista "forbidden". Când nu ești sigur că o afirmație e adevărată, scoate-o.
+- Textul e real și concret, niciodată lorem ipsum.
 `
 
 const planSchema = ROUND => ({
   type: 'object',
   properties: {
-    summary: { type: 'string', description: 'one paragraph for the owner: what this round explores and how it uses the feedback so far' },
+    summary: { type: 'string', description: 'un paragraf pentru proprietar, în română: ce explorează runda și cum folosește feedback-ul de până acum' },
     variants: { type: 'array', minItems: 1, maxItems: 6, items: { type: 'object', properties: {
-      slug: { type: 'string', description: `kebab-case, starts with "r${ROUND}-", unique across all rounds` },
-      title: { type: 'string' },
-      concept: { type: 'string', description: 'the layout idea and why it should convert' },
-      layout: { type: 'string', description: 'concrete desktop and mobile structure, section order, where the action sits' },
-      mechanics: { type: 'array', items: { type: 'string' } },
-      copy: { type: 'string', description: 'angle, headline and key copy direction' },
-      references: { type: 'array', items: { type: 'string' }, description: 'uploaded files the builder should look at or use, as /uploads/... paths' } },
+      slug: { type: 'string', description: `kebab-case, începe cu "r${ROUND}-", unic în toate rundele` },
+      title: { type: 'string', description: 'titlul paginii pentru proprietar, în română' },
+      concept: { type: 'string', description: 'ideea de așezare în pagină și de ce ar trebui să convertească' },
+      layout: { type: 'string', description: 'structura concretă pe calculator și pe telefon, ordinea secțiunilor, unde stă acțiunea' },
+      mechanics: { type: 'array', items: { type: 'string' }, description: 'mecanicile paginii, în română' },
+      copy: { type: 'string', description: 'unghiul, titlul principal și direcția textului' },
+      references: { type: 'array', items: { type: 'string' }, description: 'fișierele încărcate la care trebuie să se uite sau pe care să le folosească constructorul, ca /uploads/...' } },
       required: ['slug', 'title', 'concept', 'layout', 'mechanics', 'copy', 'references'] } },
   },
   required: ['summary', 'variants'],
@@ -78,65 +78,65 @@ const planSchema = ROUND => ({
 
 async function runRound(ROUND) {
   const plan = await agent(`${SOURCES}
-  You are the IDEAS agent for round ${ROUND} of a landing-page lab. Read the whole workspace first. If brief.current_url is set, screenshot it with: ${SHOT} <current_url> ${WS}/rounds/${ROUND} --prefix _current- — and look at both images.
+  Ești agentul de IDEI pentru runda ${ROUND} a unui laborator de pagini de landing. Citește întâi tot dosarul. Dacă brief.current_url e completat, fă-i capturi cu: ${SHOT} <current_url> ${WS}/rounds/${ROUND} --prefix _current- — și uită-te la ambele imagini.
   ${ROUND === 1
-    ? 'Round 1: make the pages genuinely different from each other — different layout, dominant mechanic and angle.'
-    : 'Build on what was loved, drop what was rejected, follow the round notes and the reference files literally, and never repeat a slug. Say in the summary how each page answers the feedback.'}
+    ? 'Runda 1: fă paginile cu adevărat diferite între ele: altă așezare, altă mecanică dominantă, alt unghi.'
+    : 'Construiește pe ce i-a plăcut proprietarului, renunță la ce a respins, urmează întocmai notele rundei și fișierele de referință și nu repeta niciun slug. Spune în rezumat cum răspunde fiecare pagină la feedback.'}
   ${CRAFT}
-  Plan exactly brief.per_round pages (default 4). Then write ${WS}/rounds/${ROUND}/plan.json containing exactly your structured output, so the dashboard shows them as "Building…". Do not create the page folders.`,
-    { label: `ideas:r${ROUND}`, phase: 'Ideate', schema: planSchema(ROUND), effort: 'high' })
-  if (!plan) throw new Error('ideas agent failed')
-  log(`Round ${ROUND}: ${plan.variants.map(v => v.title).join(' · ')}`)
+  Plănuiește exact brief.per_round pagini (implicit 4). Apoi scrie ${WS}/rounds/${ROUND}/plan.json cu exact ce întorci ca rezultat structurat, ca dashboard-ul să le arate ca „Se construiește…”. Nu crea dosarele paginilor.`,
+    { label: `idei:r${ROUND}`, phase: 'Idei', schema: planSchema(ROUND), effort: 'high' })
+  if (!plan) throw new Error('agentul de idei a eșuat')
+  log(`Runda ${ROUND}: ${plan.variants.map(v => v.title).join(' · ')}`)
 
   const built = await parallel(plan.variants.map(v => () => agent(`${SOURCES}
-  You are a BUILDER in round ${ROUND}. Build this one landing page:
+  Ești un CONSTRUCTOR în runda ${ROUND}. Construiește această pagină de landing:
   ${JSON.stringify(v, null, 1)}
-  Round context: ${plan.summary}
+  Contextul rundei: ${plan.summary}
   ${CRAFT}
-  Write ONLY inside ${WS}/rounds/${ROUND}/${v.slug}/:
-  1. index.html — ONE self-contained file with inline CSS and JS. Google Fonts allowed. Images only from /uploads/<name> (files with use "page") or /assets/<name>; reference them with those absolute paths (the winner export rewrites them). The form or action is an interactive mock: it validates and then shows an inline "This is a preview, nothing was sent" note; never call a real API. Load the frontend-design:frontend-design skill for craft guidance if it is available.
-  2. Verify: running ${SHOT} ${BASE}/rounds/${ROUND}/${v.slug}/index.html ${WS}/rounds/${ROUND}/${v.slug} writes desktop.png and mobile.png there and prints console errors, broken images and horizontal overflow. Look at both images. Fix and re-run until there are no errors, no broken images, overflow_px is 0 on mobile and the action is the focal point.
-  3. LAST write meta.json: {"title": "...", "idea": "<one sentence for the owner>", "mechanics": ["..."], "needs": ["<data/backend a mechanic needs, if any>"]}. Writing meta.json marks the page ready in the dashboard, so write it only when the page is done.
-  Return one line: the URL and anything the owner should know.`,
-    { label: `build:${v.slug}`, phase: 'Build' })))
+  Scrie DOAR în ${WS}/rounds/${ROUND}/${v.slug}/:
+  1. index.html — UN singur fișier, cu CSS și JS în el. Google Fonts e permis. Imagini doar din /uploads/<nume> (fișiere cu use "page") sau /assets/<nume>, cu exact aceste căi absolute (exportul câștigătoarei le rescrie). Formularul sau acțiunea e o machetă interactivă: validează, apoi arată în pagină nota „This is a preview, nothing was sent”, tradusă în limba paginii; nu apela niciodată un API real. Încarcă skill-ul frontend-design:frontend-design pentru îndrumări de design, dacă e disponibil.
+  2. Verifică: comanda ${SHOT} ${BASE}/rounds/${ROUND}/${v.slug}/index.html ${WS}/rounds/${ROUND}/${v.slug} scrie acolo desktop.png și mobile.png și afișează erorile din consolă, imaginile lipsă și depășirea pe orizontală. Uită-te la ambele imagini. Repară și rulează din nou până nu mai sunt erori, nici imagini lipsă, overflow_px e 0 pe telefon și acțiunea e punctul central.
+  3. LA URMĂ scrie meta.json: {"title": "...", "idea": "<o propoziție pentru proprietar>", "mechanics": ["..."], "needs": ["<date sau backend de care are nevoie o mecanică, dacă e cazul>"]}, cu title, idea, mechanics și needs în română. meta.json marchează pagina ca gata în dashboard, deci scrie-l doar când pagina e terminată.
+  Întoarce un singur rând, în română: URL-ul și ce ar trebui să știe proprietarul.`,
+    { label: `construcție:${v.slug}`, phase: 'Construcție' })))
 
   return { round: ROUND, summary: plan.summary, pages: plan.variants.map((v, i) => ({ slug: v.slug, title: v.title, url: `${BASE}/rounds/${ROUND}/${v.slug}/index.html`, report: built[i] })) }
 }
 
 const brief = await waitFor('brief.json', {
-  max_rounds: { type: 'number', description: 'max_rounds as a number (default 10 if missing)' },
-  ask_questions: { type: 'boolean', description: 'ask_questions (default true if missing)' },
-}, 'Wait')
+  max_rounds: { type: 'number', description: 'max_rounds ca număr (implicit 10 dacă lipsește)' },
+  ask_questions: { type: 'boolean', description: 'ask_questions (implicit true dacă lipsește)' },
+}, 'Așteptare')
 const MAX = brief.max_rounds || 10
 
 if (START === 1) {
-  const q = await agent(`You prepare the follow-up questions of a landing-page lab whose workspace is ${WS}.
-If ${WS}/questions.json already exists, change nothing and return the number of questions in it.
+  const q = await agent(`Pregătești întrebările unui laborator de pagini de landing al cărui dosar e ${WS}.
+Dacă ${WS}/questions.json există deja, nu schimba nimic și întoarce numărul de întrebări din el.
 ${brief.ask_questions === false
-  ? `The owner turned questions off: write ${WS}/questions.json as {"questions": []} and return 0.`
-  : `Read ${WS}/brief.json and every file in ${WS}/uploads/ (look at images with Read). Then write ${WS}/questions.json:
-{"intro": "one line", "questions": [
-  {"id": "price_anchor", "label": "…?", "help": "why it matters", "type": "single", "options": ["…", "…"], "allow_other": true},
+  ? `Proprietarul a oprit întrebările: scrie ${WS}/questions.json ca {"questions": []} și întoarce 0.`
+  : `Citește ${WS}/brief.json și fiecare fișier din ${WS}/uploads/ (la imagini uită-te cu Read). Apoi scrie ${WS}/questions.json:
+{"intro": "un rând", "questions": [
+  {"id": "price_anchor", "label": "…?", "help": "de ce contează", "type": "single", "options": ["…", "…"], "allow_other": true},
   {"id": "tone", "label": "…", "type": "multi", "options": ["…"]},
-  {"id": "has_reviews", "label": "…", "type": "toggle", "toggle_label": "Yes, with permission"},
+  {"id": "has_reviews", "label": "…", "type": "toggle", "toggle_label": "Da, cu acordul lor"},
   {"id": "story", "label": "…", "type": "text"},
   {"id": "photos", "label": "…", "type": "file"}
 ]}
-At most 6 questions, only about gaps that change the designs (truth of a claim, the real offer, assets they have). Prefer single/multi/toggle over free text. Write the intro and every label, help, option and toggle_label in Romanian with correct diacritics: the owner reads them in a Romanian dashboard. If nothing is missing, write {"questions": []}. Return the number of questions.`}`,
-    { label: 'questions', phase: 'Ideate', schema: { type: 'object', properties: { count: { type: 'number' } }, required: ['count'] } })
-  if (q?.count) await waitFor('answers.json', {}, 'Wait')
+Cel mult 6 întrebări, doar despre golurile care schimbă designul (dacă o afirmație e adevărată, oferta reală, ce materiale are). Preferă single/multi/toggle în locul textului liber. Scrie intro-ul și fiecare label, help, opțiune și toggle_label în română, cu diacritice corecte: proprietarul le citește într-un dashboard în română. Dacă nu lipsește nimic, scrie {"questions": []}. Întoarce numărul de întrebări.`}`,
+    { label: 'întrebări', phase: 'Idei', schema: { type: 'object', properties: { count: { type: 'number' } }, required: ['count'] } })
+  if (q?.count) await waitFor('answers.json', {}, 'Așteptare')
 }
 
 for (let n = START; ; n++) {
   if (n > 1) {
     const fb = await waitFor(`rounds/${n - 1}/feedback.json`, {
-      chosen: { type: 'string', description: 'the "chosen" value, or "" if it is null or missing' },
-    }, 'Wait')
+      chosen: { type: 'string', description: 'valoarea lui "chosen", sau "" dacă e null sau lipsește' },
+    }, 'Așteptare')
     if (fb.chosen) {
       return { winner: { round: n - 1, slug: fb.chosen }, path: `${WS}/winner/index.html`, meta: `${WS}/rounds/${n - 1}/${fb.chosen}/meta.json` }
     }
   }
   if (n > MAX) return { stopped: 'max_rounds', rounds: MAX }
   const r = await runRound(n)
-  log(`Round ${n} ready: ${r.pages.map(p => p.title).join(' · ')}`)
+  log(`Runda ${n} e gata: ${r.pages.map(p => p.title).join(' · ')}`)
 }
