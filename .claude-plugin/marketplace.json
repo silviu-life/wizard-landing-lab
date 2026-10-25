@@ -1,0 +1,15 @@
+{
+  "name": "wizard-landing-lab",
+  "description": "Pluginurile Wizard pentru pagini de landing.",
+  "owner": {
+    "name": "Silviu",
+    "url": "https://github.com/silviu-life"
+  },
+  "plugins": [
+    {
+      "name": "wizard-landing-lab",
+      "source": "./plugins/wizard-landing-lab",
+      "description": "Laborator de pagini de landing: dai un brief într-un dashboard, agenții construiesc pagini în runde, tu le notezi, iar runda următoare pornește din notele tale până alegi câștigătoarea."
+    }
+  ]
+}

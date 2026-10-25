@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Landing lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Instrument+Serif&display=swap" rel="stylesheet">
+<style>
+  /* "Index editorial": white paper, black ink, numbered index, filled square fields, cobalt only on focus. */
+  :root {
+    --paper: #fafaf7; --ink: #141414; --body: #3a3833; --muted: #55524c; --hint: #6b675f; --faint: #77736c;
+    --line: #dcdad4; --field: #efeee9; --stage: #e4e1db;
+    --accent: #2f4bd8; --love: #1f7a46; --maybe: #b07a12; --no: #a33a2a;
+    --serif: 'Instrument Serif', Georgia, serif; --sans: 'IBM Plex Sans', system-ui, sans-serif; --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.6 var(--sans); -webkit-font-smoothing: antialiased; }
+  h1, h2, h3, h4 { font-family: var(--serif); font-weight: 400; margin: 0; }
+  p { margin: 0; }
+  .mono { font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+  ::placeholder { color: #a29d94; }
+
+  header { position: sticky; top: 0; z-index: 5; height: 64px; display: flex; align-items: center; gap: 32px; padding: 0 48px; background: var(--paper); border-bottom: 1px solid var(--ink); }
+  header h1 { font-size: 26px; line-height: 1; }
+  #steps { display: flex; gap: 24px; color: var(--faint); }
+  #steps .now { color: var(--ink); text-decoration: underline; text-underline-offset: 6px; }
+  #status { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+  #status::before { content: ""; width: 8px; height: 8px; background: var(--accent); }
+  #status.ok::before { background: var(--love); }
+  #status.bad::before { background: var(--no); }
+
+  /* two-column editorial layout: sticky index on the left, content on the right */
+  .layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 72px; padding: 56px 48px 72px; max-width: 1440px; margin: 0 auto; }
+  .layout aside { position: sticky; top: 120px; align-self: start; display: flex; flex-direction: column; gap: 28px; }
+  .display { font-size: 64px; line-height: .98; letter-spacing: -.01em; }
+  .lead { font-size: 16px; color: var(--muted); text-wrap: pretty; }
+  .index { display: flex; flex-direction: column; border-top: 1px solid var(--ink); }
+  .index a { display: grid; grid-template-columns: 40px 1fr auto; padding: 14px 0; border-bottom: 1px solid var(--line); font-size: 15px; color: var(--muted); text-decoration: none; }
+  .index a.done { color: var(--ink); font-weight: 600; }
+  .index a span:first-child { font: 500 13px var(--mono); }
+  .index a span:last-child { font: 500 12px var(--mono); }
+  .index a.done span:last-child { color: var(--accent); }
+  .content { display: flex; flex-direction: column; gap: 56px; min-width: 0; }
+  .sec { display: flex; flex-direction: column; gap: 28px; scroll-margin-top: 100px; }
+  .sec-head { display: flex; align-items: baseline; gap: 18px; border-bottom: 1px solid var(--ink); padding-bottom: 14px; }
+  .sec-head span { font: 500 14px var(--mono); }
+  .sec-head h3 { font-size: 36px; line-height: 1; }
+
+  .field { display: flex; flex-direction: column; gap: 10px; }
+  .field > span:first-child, .label { font-size: 17px; font-weight: 600; }
+  .req { color: var(--accent); }
+  .hint { font-size: 14px; font-weight: 400; color: var(--hint); }
+  .field > .hint { margin-top: -4px; }
+  input[type=text], input[type=url], input[type=number], textarea, select {
+    width: 100%; border: 0; border-bottom: 2px solid var(--ink); border-radius: 0; background: var(--field); color: var(--ink);
+    font: 400 18px/1.6 var(--sans); padding: 0 22px; height: 60px;
+  }
+  /* Text areas grow with their content and never scroll inside (JS fallback where field-sizing is missing). */
+  textarea { height: auto; min-height: 160px; padding: 20px 22px; resize: none; overflow: hidden; field-sizing: content; }
+  textarea.short { min-height: 104px; padding: 16px 18px; font-size: 16px; line-height: 1.55; }
+  input:focus, textarea:focus, select:focus { outline: none; background: #fff; border-bottom-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 40px; align-items: end; }
+
+  /* joined square segments for single/multi choice */
+  .seg { display: flex; flex-wrap: wrap; }
+  .seg label { min-height: 54px; padding: 0 28px; display: flex; align-items: center; border: 1.5px solid var(--ink); margin: 0 0 -1.5px -1.5px; background: var(--paper); font-weight: 500; cursor: pointer; }
+  .seg label:first-child { margin-left: 0; }
+  .seg.num label { width: 60px; padding: 0; justify-content: center; font: 500 17px var(--mono); }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg label:has(input:checked) { background: var(--ink); color: var(--paper); font-weight: 600; }
+  .seg label:has(input:focus-visible), .rating label:has(input:focus-visible), .choose:has(input:focus-visible) { outline: 3px solid var(--accent); outline-offset: 2px; position: relative; z-index: 1; }
+  .toggle { display: flex; align-items: center; gap: 14px; min-height: 54px; cursor: pointer; }
+  .toggle input { appearance: none; width: 48px; height: 28px; margin: 0; flex: none; background: #c9c5bd; position: relative; cursor: pointer; }
+  .toggle input::after { content: ""; position: absolute; top: 4px; left: 4px; width: 20px; height: 20px; background: var(--paper); transition: left .15s; }
+  .toggle input:checked { background: var(--ink); }
+  .toggle input:checked::after { left: 24px; }
+  .toggle input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  button, a.btn { font: 500 15px var(--sans); height: 52px; padding: 0 22px; border: 1.5px solid var(--ink); border-radius: 0; background: var(--paper); color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; gap: 10px; text-decoration: none; }
+  button.primary, a.btn.primary { background: var(--ink); color: var(--paper); font-weight: 600; }
+  button.big { height: 64px; padding: 0 24px; font-size: 17px; justify-content: space-between; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button:focus-visible, a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .kbd { font: 500 12px var(--mono); opacity: .6; }
+  .linkish { height: auto; padding: 0; border: 0; background: none; font: 500 13px var(--mono); }
+  .link { height: auto; padding: 0; border: 0; background: none; color: var(--no); text-decoration: underline; font-size: 14px; }
+  .actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .note { font: 400 12px/1.5 var(--mono); color: var(--faint); }
+
+  .drop { border: 1.5px dashed var(--ink); padding: 22px; text-align: center; color: var(--muted); cursor: pointer; background: var(--paper); }
+  .drop.over { border-color: var(--accent); background: #eef1ff; }
+  .files { display: grid; gap: 8px; }
+  .files:empty { display: none; }
+  .file { display: grid; grid-template-columns: 56px 1fr auto; gap: 12px; align-items: center; background: var(--field); padding: 8px; }
+  .file img, .file .ext { width: 56px; height: 56px; object-fit: cover; background: var(--line); display: grid; place-items: center; font: 500 12px var(--mono); }
+  .file .meta { display: grid; gap: 6px; min-width: 0; }
+  .file .name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file input[type=text], .file select { height: 36px; padding: 0 10px; font-size: 14px; background: #fff; }
+  .file select { width: auto; }
+
+  .waiting { padding: 140px 48px; text-align: center; display: grid; gap: 18px; justify-items: center; }
+  .waiting h2 { font-size: 48px; line-height: 1.05; max-width: 760px; }
+  .banner { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; padding: 24px 48px; border-bottom: 1px solid var(--ink); }
+  .banner.win { background: #eaf3ec; }
+  .banner b { font: 400 30px/1.1 var(--serif); margin-right: auto; }
+
+  /* rounds */
+  .round-head { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 72px; padding: 56px 48px 40px; border-bottom: 1px solid var(--ink); }
+  .round-head h2 { font-size: 80px; line-height: .9; }
+  .round-head .summary { display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
+  .round-head .summary p { font-size: 17px; line-height: 1.65; color: var(--body); column-count: 2; column-gap: 40px; max-height: 168px; overflow: hidden; }
+  .round-head .summary.open p { max-height: none; }
+  .card { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 48px; padding: 56px 48px 48px; border-bottom: 1px solid var(--line); }
+  .card:last-of-type { border-bottom-color: var(--ink); }
+  .shot { position: relative; align-self: start; }
+  .shot .idx { position: absolute; left: 0; top: -1px; transform: translateY(-100%); padding-bottom: 8px; font: 500 13px var(--mono); }
+  .thumb { position: relative; display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; padding: 0; overflow: hidden; border: 0; background: var(--line); box-shadow: 0 0 0 1px var(--ink); cursor: zoom-in; }
+  .thumb iframe { position: absolute; top: 0; left: 0; width: 1440px; height: 900px; border: 0; transform-origin: 0 0; pointer-events: none; }
+  .thumb .building { position: absolute; inset: 0; display: grid; place-items: center; font: 500 13px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); cursor: default; }
+  .card.chosen .thumb { box-shadow: 0 0 0 4px var(--love); }
+  .card .body { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+  .card h3 { font-size: 38px; line-height: 1.05; }
+  .card .idea { color: var(--body); }
+  .mech { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 14px; line-height: 1.5; color: var(--muted); }
+  .mech li { display: grid; grid-template-columns: 28px 1fr; }
+  .mech li > span:first-child { font: 500 12px/1.75 var(--mono); }
+  .mech button { color: var(--accent); }
+  .rating { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .rating label { height: 56px; display: flex; align-items: center; justify-content: center; gap: 10px; border: 1.5px solid var(--ink); margin-left: -1.5px; background: var(--paper); font-weight: 500; cursor: pointer; }
+  .rating label:first-child { margin-left: 0; }
+  .rating input { position: absolute; opacity: 0; pointer-events: none; }
+  .rating .k { font: 500 11px var(--mono); border: 1px solid #b9b5ad; padding: 2px 5px; }
+  .rating label:has(input[value=love]:checked) { background: var(--love); border-color: var(--love); color: #fff; font-weight: 600; }
+  .rating label:has(input[value=maybe]:checked) { background: var(--maybe); border-color: var(--maybe); color: #fff; font-weight: 600; }
+  .rating label:has(input[value=no]:checked) { background: var(--no); border-color: var(--no); color: #fff; font-weight: 600; }
+  .rating label:has(input:checked) .k { border-color: rgba(255, 255, 255, .6); }
+  .choose { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 15px; cursor: pointer; }
+  .choose input { appearance: none; width: 20px; height: 20px; margin: 0; border: 1.5px solid var(--ink); display: grid; place-items: center; cursor: pointer; }
+  .choose input:checked { background: var(--love); border-color: var(--love); }
+  .choose input:checked::after { content: "✓"; color: #fff; font-size: 13px; line-height: 1; }
+  .verdict { font: 500 13px/1.5 var(--mono); }
+  .verdict b { text-transform: uppercase; letter-spacing: .08em; }
+  .direction { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 72px; padding: 48px 48px 56px; }
+  .direction h3 { font-size: 36px; line-height: 1.05; }
+  .direction .stack { display: flex; flex-direction: column; gap: 18px; }
+  .direction .send { margin-left: auto; min-width: 360px; }
+  .dashed { border-style: dashed; }
+  details.past { border-bottom: 1px solid var(--ink); }
+  details.past > summary { list-style: none; cursor: pointer; display: flex; align-items: baseline; gap: 24px; padding: 28px 48px; }
+  details.past > summary::-webkit-details-marker { display: none; }
+  details.past > summary h2 { font-size: 40px; line-height: 1; }
+  details.past > summary .mono { color: var(--muted); }
+  details.past > summary::after { content: "+"; margin-left: auto; font: 500 20px var(--mono); }
+  details.past[open] > summary::after { content: "−"; }
+  details.past > .lead { padding: 0 48px 8px; max-width: 1100px; color: var(--body); }
+
+  /* full-screen viewer */
+  #viewer { position: fixed; inset: 0; z-index: 20; background: var(--stage); display: none; flex-direction: column; }
+  #viewer.open { display: flex; }
+  #viewer .bar { min-height: 68px; display: flex; align-items: center; gap: 14px; padding: 12px 24px; background: var(--paper); border-bottom: 1px solid var(--ink); flex-wrap: wrap; }
+  #viewer .bar button { height: 44px; padding: 0 14px; font-size: 14px; }
+  #v-idx { font: 500 13px var(--mono); }
+  #v-title { font: 400 24px/1 var(--serif); margin-right: auto; }
+  #viewer .pair { display: flex; }
+  #viewer .pair button + button { margin-left: -1.5px; }
+  #viewer .pair button[aria-pressed=true] { background: var(--ink); color: var(--paper); }
+  #viewer .side { display: flex; gap: 14px; align-items: center; }
+  #viewer .side .rating label { height: 44px; padding: 0 14px; font-size: 14px; }
+  #viewer .side input[type=text] { width: 240px; height: 44px; padding: 0 12px; font-size: 15px; }
+  #viewer .stage { flex: 1; display: flex; justify-content: center; overflow: auto; }
+  #viewer iframe { border: 0; background: #fff; width: 100%; height: 100%; }
+  #viewer.mobile iframe { width: 390px; height: 844px; margin: 24px 0; flex: none; box-shadow: 0 0 0 1px var(--ink), 0 20px 60px rgba(0, 0, 0, .14); }
+
+  @media (max-width: 900px) {
+    header { padding: 0 20px; gap: 16px; }
+    #steps { display: none; }
+    .layout, .round-head, .direction, .card { grid-template-columns: 1fr; gap: 32px; padding-left: 20px; padding-right: 20px; }
+    .layout aside { position: static; }
+    .display { font-size: 48px; }
+    .round-head h2 { font-size: 56px; }
+    .round-head .summary p { column-count: 1; }
+    .card h3 { font-size: 30px; }
+    .direction .send { min-width: 0; width: 100%; }
+    .choose { margin-left: 0; }
+    .row { grid-template-columns: 1fr; }
+    .banner, details.past > summary { padding-left: 20px; padding-right: 20px; }
+    details.past > .lead { padding: 0 20px 8px; }
+    #viewer .side input[type=text] { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Landing lab</h1>
+  <nav id="steps" class="mono" aria-label="Progres"></nav>
+  <span id="status" class="mono" aria-live="polite">Se încarcă…</span>
+</header>
+<main id="app"></main>
+
+<div id="viewer" role="dialog" aria-modal="true" aria-label="Previzualizare pagină">
+  <div class="bar">
+    <span id="v-idx"></span>
+    <strong id="v-title"></strong>
+    <div class="pair"><button id="v-prev" aria-label="Pagina anterioară">←</button><button id="v-next" aria-label="Pagina următoare">→</button></div>
+    <div class="pair"><button id="v-desktop" aria-pressed="true">Desktop</button><button id="v-mobile" aria-pressed="false">Telefon</button></div>
+    <div class="side" id="v-feedback"></div>
+    <button id="v-tab">Tab nou ↗</button>
+    <button id="v-close" class="primary">Închide <span class="kbd">esc</span></button>
+  </div>
+  <div class="stage"><iframe id="v-frame" title="Previzualizare pagină"></iframe></div>
+</div>
+
+<script>
+const app = document.getElementById('app');
+const statusEl = document.getElementById('status');
+const stepsEl = document.getElementById('steps');
+let state = null;
+let signature = '';
+let viewing = null;
+let hoverCard = null;
+// View-only toggles (not drafts): expanded round summaries, expanded mechanic lists, open reference panels.
+const open = new Set();
+
+// Drafts live in localStorage so a refresh, or a new round arriving mid-typing, never loses work.
+const drafts = (() => { try { return JSON.parse(localStorage.getItem('lab-drafts')) || {}; } catch { return {}; } })();
+const saveDrafts = () => { try { localStorage.setItem('lab-drafts', JSON.stringify(drafts)); } catch {} };
+let ns = '';
+const draft = key => ((drafts[ns] ??= {})[key] ??= {});
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const pageUrl = (round, slug) => `/rounds/${round}/${slug}/index.html`;
+const two = n => String(n).padStart(2, '0');
+const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl';
+
+async function post(url, body) {
+  const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const json = await response.json();
+  if (!response.ok) throw new Error(json.error || 'Cererea a eșuat');
+  return json;
+}
+
+async function upload(files) {
+  const saved = [];
+  for (const file of files) {
+    const data = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    const { path } = await post('/api/upload', { name: file.name, data });
+    saved.push({ path, name: file.name, type: file.type, use: file.type.startsWith('image/') ? 'page' : 'reference', note: '' });
+  }
+  return saved;
+}
+
+/* ---------- file lists (intake, questions, feedback) ---------- */
+
+function fileList(key, { withUse = false } = {}) {
+  const list = draft(key).files ??= [];
+  return `<div class="drop" data-drop="${key}" tabindex="0" role="button" aria-label="Adaugă fișiere">
+      Trage fișierele aici sau dă clic ca să alegi: imagini, PDF-uri, documente, capturi de ecran
+      <input type="file" multiple hidden data-picker="${key}">
+    </div>
+    <div class="files">${list.map((f, i) => `<div class="file">
+      ${f.type?.startsWith('image/') ? `<img src="${esc(f.path)}" alt="">` : `<div class="ext">${esc(f.name.split('.').pop().toUpperCase())}</div>`}
+      <div class="meta"><span class="name">${esc(f.name)}</span>
+        <input type="text" placeholder="Ce este? (opțional)" value="${esc(f.note)}" data-file-note="${key}" data-index="${i}">
+        ${withUse ? `<select data-file-use="${key}" data-index="${i}" aria-label="Cum folosim ${esc(f.name)}">
+          <option value="page" ${f.use === 'page' ? 'selected' : ''}>Se poate pune în pagină</option>
+          <option value="reference" ${f.use === 'reference' ? 'selected' : ''}>Doar ca inspirație</option></select>` : ''}
+      </div>
+      <button class="link" data-file-remove="${key}" data-index="${i}">Șterge</button>
+    </div>`).join('')}</div>`;
+}
+
+async function addFiles(key, files) {
+  statusEl.textContent = 'Se încarcă fișierele…';
+  try {
+    (draft(key).files ??= []).push(...await upload([...files]));
+    saveDrafts();
+    statusEl.textContent = 'Fișiere încărcate';
+  } catch (error) { alert(error.message); }
+  render(true);
+}
+
+/* ---------- intake ---------- */
+
+const INTAKE = [
+  ['Ce vindem', [
+    ['product', 'Produsul sau serviciul', 'Ce este, ce primește cumpărătorul, cum funcționează.', 'area', true],
+    ['audience', 'Pentru cine e', 'Tipurile de cumpărători, situația lor, ce îi face să cumpere.', 'area'],
+    ['offer', 'Oferta și prețul', 'Prețul, pachetele, bonusurile, termenele reale.', 'area'],
+  ]],
+  ['Ce trebuie să facă pagina', [
+    ['action', 'Singura acțiune', 'de ex. „Comandă acum”, „Programează un apel”, „Intră pe lista de așteptare”.', 'text', true],
+    ['form_fields', 'Câmpurile de care are nevoie comanda reală', 'de ex. nume, email, încărcare de poze, bifa de acord.', 'area'],
+    ['current_url', 'Linkul paginii actuale (opțional)', 'Agenții îi fac o captură și pornesc de la ea.', 'url'],
+  ]],
+  ['Adevărul', [
+    ['true_claims', 'Ce putem afirma', 'Fapte dovedite: timp de livrare, garanții, cifre, recenzii cu acordul clienților.', 'area'],
+    ['forbidden', 'Ce nu avem voie să afirmăm niciodată', 'Orice nu e adevărat azi sau e riscant legal.', 'area'],
+  ]],
+  ['Aspect și ton', [
+    ['brand', 'Brandul', 'Numele, culorile, fonturile, ce trebuie știut despre logo.', 'area'],
+    ['tone', 'Tonul', 'de ex. cald, jucăuș, premium, direct.', 'text'],
+    ['references', 'Pagini sau branduri care îți plac', 'Linkuri și ce îți place la fiecare.', 'area'],
+  ]],
+];
+const defaults = { traffic: 'both', per_round: '4', max_rounds: '8' };
+
+// The left index: how many fields of each section are filled in.
+function intakeCounts() {
+  const d = draft('intake');
+  return [
+    ...INTAKE.map(([, fields]) => `${fields.filter(([id]) => String(d[id] ?? '').trim()).length}/${fields.length}`),
+    d.files?.length ? String(d.files.length) : '—',
+    '✓',
+  ];
+}
+function updateIndex() {
+  intakeCounts().forEach((count, i) => {
+    const row = document.querySelector(`[data-count="${i}"]`);
+    if (!row) return;
+    row.lastElementChild.textContent = count;
+    row.classList.toggle('done', count !== '—' && !count.startsWith('0/'));
+  });
+}
+
+function section(i, title, inner) {
+  return `<section class="sec" id="sec-${i + 1}"><div class="sec-head"><span>${two(i + 1)}</span><h3>${title}</h3></div>${inner}</section>`;
+}
+
+function intakeView() {
+  const d = draft('intake');
+  const field = ([id, label, hint, type, required]) => `<label class="field"><span>${label}${required ? ' <span class="req">*</span>' : ''}</span>
+    <span class="hint">${hint}</span>
+    ${type === 'area' ? `<textarea data-intake="${id}" ${required ? 'required' : ''}>${esc(d[id])}</textarea>`
+      : `<input type="${type}" data-intake="${id}" value="${esc(d[id])}" ${required ? 'required' : ''}>`}</label>`;
+  const seg = (name, value, label) => `<label><input type="radio" name="${name}" value="${value}" data-intake="${name}" ${(d[name] ?? defaults[name]) === value ? 'checked' : ''}>${label}</label>`;
+  const names = [...INTAKE.map(([legend]) => legend), 'Fișiere', 'Cum rulăm'];
+  const counts = intakeCounts();
+  return `<div class="layout">
+    <aside>
+      <h2 class="display">Brief-ul laboratorului</h2>
+      <p class="lead">Spune-le agenților ce vinzi. Ei citesc brief-ul, pot să-ți pună câteva întrebări, apoi fac pagini în runde pe care le notezi tu.</p>
+      <nav class="index" aria-label="Secțiunile brief-ului">${names.map((n, i) =>
+        `<a href="#sec-${i + 1}" data-count="${i}" class="${counts[i] !== '—' && !counts[i].startsWith('0/') ? 'done' : ''}"><span>${two(i + 1)}</span><span>${n}</span><span>${counts[i]}</span></a>`).join('')}</nav>
+      <button class="primary big" id="send-brief">Pornește laboratorul <span>→</span></button>
+      <span class="note">* obligatoriu · ${MOD} ↵ ca să pornești</span>
+    </aside>
+    <div class="content">
+      ${INTAKE.map(([legend, fields], i) => section(i, legend, fields.map(field).join(''))).join('')}
+      ${section(4, 'Fișiere', `<p class="hint">Logouri, poze cu produsul, documente, capturi ale paginilor care îți plac. Imaginile marcate „Se poate pune în pagină” pot apărea în design.</p>${fileList('intake', { withUse: true })}`)}
+      ${section(5, 'Cum rulăm', `
+        <div class="field"><span class="label">De pe ce vin cei mai mulți vizitatori</span><div class="seg">${seg('traffic', 'mobile', 'Telefon')}${seg('traffic', 'desktop', 'Calculator')}${seg('traffic', 'both', 'Ambele la fel')}</div></div>
+        <div class="row">
+          <div class="field"><span class="label">Pagini pe rundă</span><div class="seg num">${['3', '4', '5'].map(n => seg('per_round', n, n)).join('')}</div></div>
+          <label class="field"><span>Număr maxim de runde</span><input type="number" min="1" max="20" data-intake="max_rounds" value="${esc(d.max_rounds ?? defaults.max_rounds)}" style="max-width:160px"></label>
+        </div>
+        <label class="field"><span>Altceva pentru agenți</span><textarea class="short" data-intake="notes">${esc(d.notes)}</textarea></label>
+        <label class="toggle"><input type="checkbox" data-intake="ask_questions" ${(d.ask_questions ?? true) ? 'checked' : ''}> Lasă agenții să pună întrebări înainte de runda 1</label>`)}
+    </div>
+  </div>`;
+}
+
+/* ---------- questions ---------- */
+
+function questionsView() {
+  const d = draft('answers');
+  const qs = state.questions.questions;
+  const control = q => {
+    const value = d[q.id];
+    if (q.type === 'single' || q.type === 'multi') {
+      const type = q.type === 'single' ? 'radio' : 'checkbox';
+      return `<div class="seg">${q.options.map(o => `<label><input type="${type}" name="q-${q.id}" value="${esc(o)}" data-answer="${q.id}" data-kind="${q.type}"
+        ${(q.type === 'single' ? value === o : (value || []).includes(o)) ? 'checked' : ''}>${esc(o)}</label>`).join('')}</div>
+        ${q.allow_other ? `<input type="text" placeholder="Altceva…" data-answer="${q.id}__other" value="${esc(d[q.id + '__other'])}">` : ''}`;
+    }
+    if (q.type === 'toggle') return `<label class="toggle"><input type="checkbox" data-answer="${q.id}" data-kind="toggle" ${value ? 'checked' : ''}> ${esc(q.toggle_label || 'Da')}</label>`;
+    if (q.type === 'file') return fileList(`q-${q.id}`, { withUse: true });
+    return `<textarea data-answer="${q.id}">${esc(value)}</textarea>`;
+  };
+  return `<div class="layout">
+    <aside>
+      <h2 class="display">Întâi câteva întrebări</h2>
+      <p class="lead">${esc(state.questions.intro || 'Agenții ți-au citit brief-ul. Răspunde la ce poți; sari peste ce nu știi.')}</p>
+      <nav class="index" aria-label="Întrebări">${qs.map((q, i) => `<a href="#sec-${i + 1}"><span>${two(i + 1)}</span><span>${esc(q.label)}</span><span></span></a>`).join('')}</nav>
+      <button class="primary big" id="send-answers">Trimite răspunsurile → runda 1 <span class="kbd">${MOD} ↵</span></button>
+    </aside>
+    <div class="content">
+      ${qs.map((q, i) => section(i, esc(q.label), `${q.help ? `<p class="hint">${esc(q.help)}</p>` : ''}${control(q)}`)).join('')}
+    </div>
+  </div>`;
+}
+
+/* ---------- rounds ---------- */
+
+const vdraft = (round, slug) => (draft(`r${round}`).variants ??= {})[slug] ??= { rating: '', notes: '' };
+const RATINGS = [['love', 'Îmi place'], ['maybe', 'Poate'], ['no', 'Nu']];
+
+function ratingInputs(round, slug, name) {
+  const current = vdraft(round, slug).rating;
+  return `<div class="rating" role="radiogroup" aria-label="Notă (tastele 1, 2, 3)">${RATINGS.map(([value, label], i) =>
+    `<label><input type="radio" name="${name}" value="${value}" data-round="${round}" data-slug="${slug}" data-field="rating" ${current === value ? 'checked' : ''}><span class="k">${i + 1}</span>${label}</label>`).join('')}</div>`;
+}
+
+function mechanics(r, v) {
+  const list = v.mechanics ?? [];
+  if (!list.length) return '';
+  const key = `m-${r.round}-${v.slug}`;
+  const shown = open.has(key) ? list : list.slice(0, 3);
+  const more = list.length - shown.length;
+  return `<ol class="mech">${shown.map((m, i) => `<li><span>${String.fromCharCode(97 + i)}.</span><span>${esc(m)}${
+    i === shown.length - 1 && more ? ` <button class="linkish" data-toggle="${key}">· încă ${more}</button>` : ''}</span></li>`).join('')}</ol>`;
+}
+
+function card(r, v, i, isOpen) {
+  const d = vdraft(r.round, v.slug);
+  const chosen = (isOpen ? draft(`r${r.round}`).chosen : r.feedback?.chosen) === v.slug;
+  const thumb = v.ready
+    ? `<button class="thumb" data-open="${r.round}/${v.slug}" aria-label="Deschide ${esc(v.title)} pe tot ecranul"><iframe src="${pageUrl(r.round, v.slug)}" loading="lazy" tabindex="-1" aria-hidden="true"></iframe></button>`
+    : `<div class="thumb"><div class="building">Se construiește…</div></div>`;
+  const past = !isOpen && r.feedback?.variants?.[v.slug];
+  const refs = `refs-${r.round}-${v.slug}`;
+  const refCount = draft(`r${r.round}-${v.slug}`).files?.length;
+  return `<article class="card ${chosen ? 'chosen' : ''}" data-card="${r.round}/${v.slug}">
+    <div class="shot"><span class="idx">${two(i + 1)} / ${two(r.variants.length)}</span>${thumb}</div>
+    <div class="body">
+      <h3>${esc(v.title || v.slug)}</h3>
+      <p class="idea">${esc(v.idea || v.concept || '')}</p>
+      ${mechanics(r, v)}
+      ${isOpen && v.ready ? `
+        ${ratingInputs(r.round, v.slug, `rate-${r.round}-${v.slug}`)}
+        <textarea class="short" id="notes-${r.round}-${v.slug}" aria-label="Note despre ${esc(v.title)}" data-round="${r.round}" data-slug="${v.slug}" data-field="notes" placeholder="Ce merge, ce nu merge, ce păstrăm…">${esc(d.notes)}</textarea>
+        <div class="actions">
+          <button class="primary" data-open="${r.round}/${v.slug}">Deschide pe tot ecranul ↗</button>
+          <button data-toggle="${refs}" aria-expanded="${open.has(refs)}">+ Exemple${refCount ? ` (${refCount})` : ''}</button>
+          <label class="choose"><input type="radio" name="chosen-${r.round}" value="${v.slug}" data-round="${r.round}" data-field="chosen" ${chosen ? 'checked' : ''}> Asta e pagina</label>
+        </div>
+        ${open.has(refs) ? fileList(`r${r.round}-${v.slug}`) : ''}` : ''}
+      ${past ? `<p class="verdict"><b>${esc(({ love: 'îmi place', maybe: 'poate', no: 'nu' })[past.rating] || 'fără notă')}</b>${past.notes ? ` · ${esc(past.notes)}` : ''}</p>` : ''}
+      ${!isOpen && chosen ? '<p class="verdict"><b>Câștigătoarea</b></p>' : ''}
+    </div>
+  </article>`;
+}
+
+function roundsView() {
+  if (!state.rounds.length) return waiting('Agenții fac runda 1.', 'Paginile apar aici pe măsură ce sunt gata');
+  const w = state.winner;
+  const banner = w ? `<div class="banner win"><b>Câștigătoarea: ${esc(w.title)}</b><span class="mono">Runda ${w.round}</span>
+      <a class="btn primary" href="/winner/index.html" target="_blank">Deschide pagina ↗</a>
+      <a class="btn" href="/api/winner.zip">Descarcă HTML-ul și fișierele</a></div>` : '';
+  return banner + [...state.rounds].reverse().map((r, i) => {
+    const isOpen = !r.feedback && !w;
+    const cards = r.variants.map((v, k) => card(r, v, k, isOpen)).join('');
+    if (!isOpen) {
+      const label = r.feedback ? `Feedback trimis${r.feedback.chosen ? ` · ai ales ${esc(r.feedback.chosen)}` : ''}` : 'Fără note';
+      return `<details class="past" ${i === 0 ? 'open' : ''}><summary><h2>Runda ${r.round}</h2><span class="mono">${label}</span></summary><p class="lead">${esc(r.summary)}</p>${cards}</details>`;
+    }
+    const allReady = r.variants.length && r.variants.every(v => v.ready);
+    const chosen = draft(`r${r.round}`).chosen;
+    const sum = `sum-${r.round}`;
+    const refs = `refs-${r.round}`;
+    const refCount = draft(`r${r.round}`).files?.length;
+    return `<section>
+      <div class="round-head"><h2>Runda ${r.round}</h2>
+        <div class="summary ${open.has(sum) ? 'open' : ''}"><p>${esc(r.summary)}</p>
+          <button class="linkish" data-toggle="${sum}" aria-expanded="${open.has(sum)}">${open.has(sum) ? 'Arată mai puțin ↑' : 'Citește tot raționamentul ↓'}</button></div></div>
+      ${cards}
+      <div class="direction"><h3>Direcția pentru runda următoare</h3>
+        <div class="stack">
+          <textarea id="general-${r.round}" aria-label="Note pentru toată runda" placeholder="Note pentru toată runda" data-round="${r.round}" data-field="general">${esc(draft(`r${r.round}`).general)}</textarea>
+          ${open.has(refs) ? `<p class="hint">Capturi cu ce vrei, fișiere de brand, documente.</p>${fileList(`r${r.round}`)}` : ''}
+          <div class="actions">
+            <button class="dashed" data-toggle="${refs}" aria-expanded="${open.has(refs)}">+ Exemple vizuale și fișiere${refCount ? ` (${refCount})` : ''}</button>
+            <button class="primary big send" data-submit="${r.round}" ${allReady ? '' : 'disabled'}>${chosen ? `Alege „${esc(chosen)}” și termină` : 'Trimite feedback-ul → runda următoare'} <span class="kbd">${MOD} ↵</span></button>
+          </div>
+          ${allReady ? '' : '<span class="note">Așteaptă până sunt gata toate paginile.</span>'}
+        </div>
+      </div></section>`;
+  }).join('') + (!w && state.rounds.at(-1).feedback ? `<div class="banner"><span class="mono">Feedback trimis. Agenții fac runda următoare, care apare aici singură.</span></div>` : '');
+}
+
+/* ---------- render + polling ---------- */
+
+function waiting(title, sub) {
+  return `<div class="waiting"><h2>${title}</h2><span class="mono">${sub}</span></div>`;
+}
+
+function view() {
+  if (!state.brief) return intakeView();
+  if (!state.questions) return waiting('Agenții îți citesc brief-ul…', 'Aici apar apoi întrebările sau runda 1');
+  if (state.questions.questions?.length && !state.answers) return questionsView();
+  return roundsView();
+}
+
+// Text areas grow with their content; browsers without field-sizing get the height set here.
+const GROWS = CSS.supports('field-sizing', 'content');
+function fit(t) { if (!GROWS && t.tagName === 'TEXTAREA') { t.style.height = 'auto'; t.style.height = t.scrollHeight + 4 + 'px'; } }
+
+function render(force) {
+  const focused = document.activeElement?.id || null;
+  const caret = focused && document.activeElement.selectionStart;
+  app.innerHTML = view();
+  if (focused && document.getElementById(focused)) {
+    const el = document.getElementById(focused);
+    el.focus();
+    if (caret != null && el.setSelectionRange) el.setSelectionRange(caret, caret);
+  }
+  app.querySelectorAll('textarea').forEach(fit);
+  scaleThumbs();
+}
+
+function scaleThumbs() {
+  document.querySelectorAll('.thumb iframe').forEach(f => { f.style.transform = `scale(${f.parentElement.clientWidth / 1440})`; });
+}
+
+function describe(s) {
+  if (!s.brief) return 'Așteaptă brief-ul tău';
+  if (s.winner) return `Gata · câștigătoarea: ${s.winner.title}`;
+  if (!s.questions) return 'Se citește brief-ul…';
+  if (s.questions.questions?.length && !s.answers) return 'Așteaptă răspunsurile tale';
+  const r = s.rounds.at(-1);
+  if (!r) return 'Se face runda 1…';
+  if (r.feedback) return `Se face runda ${r.round + 1}…`;
+  const built = r.variants.filter(v => v.ready).length;
+  const rated = Object.values(draft(`r${r.round}`).variants ?? {}).filter(v => v.rating).length;
+  return `${built}/${r.variants.length} gata · ${rated}/${r.variants.length} notate`;
+}
+
+function steps(s) {
+  const items = [['Brief', !!s.brief]];
+  if (s.questions?.questions?.length) items.push(['Întrebări', !!s.answers]);
+  for (const r of s.rounds) items.push([`Runda ${r.round}`, !!r.feedback]);
+  const now = items.findIndex(([, done]) => !done);
+  return items.map(([label, done], i) => `<span class="${i === now ? 'now' : ''}">${label}${done ? ' ✓' : ''}</span>`).join('');
+}
+
+function showStatus(s) {
+  statusEl.textContent = describe(s);
+  const r = s.rounds.at(-1);
+  statusEl.className = 'mono' + (s.winner || (r && !r.feedback && r.variants.every(v => v.ready)) ? ' ok' : '');
+}
+
+async function refresh() {
+  try {
+    const next = await (await fetch('/api/state')).json();
+    ns = next.workspace;
+    showStatus(next);
+    stepsEl.innerHTML = steps(next);
+    const sig = JSON.stringify([!!next.brief, next.questions, !!next.answers, next.winner,
+      next.rounds.map(r => [r.round, r.summary, !!r.feedback, r.variants.map(v => [v.slug, v.ready, v.title])])]);
+    if (sig !== signature) { signature = sig; state = next; render(); }
+  } catch { statusEl.textContent = 'Serverul nu răspunde'; statusEl.className = 'mono bad'; }
+}
+
+/* ---------- events ---------- */
+
+app.addEventListener('input', e => {
+  const t = e.target;
+  fit(t);
+  if (t.dataset.intake) {
+    draft('intake')[t.dataset.intake] = t.type === 'checkbox' ? t.checked : t.value;
+    updateIndex();
+  } else if (t.dataset.answer) {
+    const d = draft('answers');
+    if (t.dataset.kind === 'multi') d[t.dataset.answer] = [...app.querySelectorAll(`[data-answer="${t.dataset.answer}"]:checked`)].map(x => x.value);
+    else d[t.dataset.answer] = t.dataset.kind === 'toggle' ? t.checked : t.value;
+  } else if (t.dataset.fileNote) {
+    draft(t.dataset.fileNote).files[t.dataset.index].note = t.value;
+  } else if (t.dataset.fileUse) {
+    draft(t.dataset.fileUse).files[t.dataset.index].use = t.value;
+  } else if (t.dataset.field) {
+    const { round, slug, field } = t.dataset;
+    if (field === 'general') draft(`r${round}`).general = t.value;
+    else if (field === 'chosen') { draft(`r${round}`).chosen = t.value; saveDrafts(); return render(); }
+    else vdraft(round, slug)[field] = t.value;
+    if (field === 'rating' && state) showStatus(state);
+  } else return;
+  saveDrafts();
+});
+app.addEventListener('change', e => {
+  if (e.target.dataset.picker) addFiles(e.target.dataset.picker, e.target.files);
+});
+
+app.addEventListener('click', async e => {
+  if (e.target.type === 'file') return;
+  const drop = e.target.closest('[data-drop]');
+  if (drop) return drop.querySelector('input[type=file]').click();
+  const remove = e.target.closest('[data-file-remove]');
+  if (remove) { draft(remove.dataset.fileRemove).files.splice(remove.dataset.index, 1); saveDrafts(); return render(); }
+  const toggle = e.target.closest('[data-toggle]');
+  if (toggle) { const k = toggle.dataset.toggle; open.has(k) ? open.delete(k) : open.add(k); return render(); }
+  const opener = e.target.closest('[data-open]');
+  if (opener) return openViewer(...opener.dataset.open.split('/'));
+  const send = e.target.closest('#send-brief, #send-answers');
+
+  if (send?.id === 'send-brief') {
+    const d = draft('intake');
+    if (!d.product?.trim() || !d.action?.trim()) return alert('Completează măcar produsul și singura acțiune.');
+    const brief = { ...defaults, ask_questions: true, ...d, files: draft('intake').files ?? [] };
+    send.disabled = true;
+    try { await post('/api/brief', brief); } catch (error) { send.disabled = false; return alert(error.message); }
+    return refresh();
+  }
+  if (send?.id === 'send-answers') {
+    const answers = { ...draft('answers') };
+    for (const q of state.questions.questions.filter(q => q.type === 'file')) answers[q.id] = draft(`q-${q.id}`).files ?? [];
+    send.disabled = true;
+    try { await post('/api/answers', answers); } catch (error) { send.disabled = false; return alert(error.message); }
+    return refresh();
+  }
+  const submit = e.target.closest('[data-submit]');
+  if (submit) {
+    const round = submit.dataset.submit;
+    const d = draft(`r${round}`);
+    if (d.chosen && !confirm(`Alegi „${d.chosen}” drept câștigătoare și oprești laboratorul?`)) return;
+    const variants = Object.fromEntries(Object.entries(d.variants ?? {}).map(([slug, v]) => [slug, { ...v, files: draft(`r${round}-${slug}`).files ?? [] }]));
+    submit.disabled = true;
+    try {
+      await post(`/api/rounds/${round}/feedback`, { round: Number(round), chosen: d.chosen ?? null, general: d.general ?? '', files: d.files ?? [], variants });
+    } catch (error) { submit.disabled = false; return alert(error.message); }
+    refresh();
+  }
+});
+
+app.addEventListener('keydown', e => {
+  const drop = e.target.closest?.('[data-drop]');
+  if (drop && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); drop.querySelector('input[type=file]').click(); }
+});
+app.addEventListener('dragover', e => { const d = e.target.closest('[data-drop]'); if (d) { e.preventDefault(); d.classList.add('over'); } });
+app.addEventListener('dragleave', e => e.target.closest('[data-drop]')?.classList.remove('over'));
+app.addEventListener('drop', e => {
+  const d = e.target.closest('[data-drop]');
+  if (!d) return;
+  e.preventDefault();
+  addFiles(d.dataset.drop, e.dataTransfer.files);
+});
+app.addEventListener('mouseover', e => { hoverCard = e.target.closest('[data-card]') || hoverCard; });
+
+/* ---------- keyboard: 1/2/3 rate, Cmd/Ctrl+Enter sends ---------- */
+
+const typing = t => t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || (t.tagName === 'INPUT' && /text|url|number/.test(t.type));
+function rate(container, key) {
+  const input = container?.querySelectorAll('.rating input')[Number(key) - 1];
+  if (!input) return;
+  input.checked = true;
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !viewing) {
+    const target = document.querySelector('#send-brief, #send-answers, [data-submit]:not(:disabled)');
+    if (target) { e.preventDefault(); target.click(); }
+    return;
+  }
+  if (typing(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (['1', '2', '3'].includes(e.key)) rate(viewing ? document.getElementById('v-feedback') : e.target.closest?.('[data-card]') || hoverCard, e.key);
+});
+
+/* ---------- full-screen viewer ---------- */
+
+const viewer = document.getElementById('viewer');
+const frame = document.getElementById('v-frame');
+function openViewer(round, slug) {
+  viewing = { round, slug };
+  const r = state.rounds.find(x => x.round == round);
+  const v = r.variants.find(x => x.slug === slug);
+  document.getElementById('v-idx').textContent = `${two(r.variants.indexOf(v) + 1)} / ${two(r.variants.length)}`;
+  document.getElementById('v-title').textContent = v.title || slug;
+  frame.src = pageUrl(round, slug);
+  document.getElementById('v-feedback').innerHTML = r.feedback || state.winner ? '' :
+    ratingInputs(round, slug, 'v-rate') + `<input type="text" id="v-notes" aria-label="Note" placeholder="O notă rapidă…" value="${esc(vdraft(round, slug).notes)}">`;
+  viewer.classList.add('open');
+  document.getElementById('v-close').focus();
+}
+function closeViewer() {
+  viewer.classList.remove('open');
+  frame.src = 'about:blank';
+  viewing = null;
+  render();
+}
+function step(delta) {
+  const list = state.rounds.find(r => r.round == viewing.round).variants.filter(v => v.ready);
+  const i = list.findIndex(v => v.slug === viewing.slug);
+  openViewer(viewing.round, list[(i + delta + list.length) % list.length].slug);
+}
+function setMode(mobile) {
+  viewer.classList.toggle('mobile', mobile);
+  document.getElementById('v-mobile').setAttribute('aria-pressed', mobile);
+  document.getElementById('v-desktop').setAttribute('aria-pressed', !mobile);
+}
+document.getElementById('v-close').onclick = closeViewer;
+document.getElementById('v-prev').onclick = () => step(-1);
+document.getElementById('v-next').onclick = () => step(1);
+document.getElementById('v-desktop').onclick = () => setMode(false);
+document.getElementById('v-mobile').onclick = () => setMode(true);
+document.getElementById('v-tab').onclick = () => window.open(frame.src, '_blank');
+document.getElementById('v-feedback').addEventListener('input', e => {
+  const d = vdraft(viewing.round, viewing.slug);
+  if (e.target.id === 'v-notes') d.notes = e.target.value; else d.rating = e.target.value;
+  saveDrafts();
+  showStatus(state);
+});
+document.addEventListener('keydown', e => {
+  if (!viewing || (e.target.tagName === 'INPUT' && e.target.type === 'text')) return;
+  if (e.key === 'Escape') closeViewer();
+  if (e.key === 'ArrowRight') step(1);
+  if (e.key === 'ArrowLeft') step(-1);
+});
+
+addEventListener('resize', scaleThumbs);
+refresh();
+setInterval(refresh, 4000);
+</script>
+</body>
+</html>
