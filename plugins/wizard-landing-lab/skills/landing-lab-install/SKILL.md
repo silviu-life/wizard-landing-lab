@@ -28,7 +28,19 @@ Fiecare componentă are rolul ei în atelier:
 
 ## Pasul 1. Ce sistem are userul
 
-Rulează `uname -s` și, pe Linux, `grep -qi microsoft /proc/version` (WSL = un Linux care trăiește în Windows). Spune-i într-un rând ce ai găsit și ce înseamnă, de exemplu: „Ești pe Windows, dar lucrăm în WSL, adică într-o cameră cu Linux din calculatorul tău. Comenzile de mai jos sunt pentru camera asta.” Pe Windows fără WSL folosești variantele de PowerShell din tabelul de la pasul 2.
+Află întâi în ce terminal rulezi comenzile, apoi sistemul:
+
+- **Bash** (Linux, macOS, WSL sau Git Bash pe Windows): `uname -s`. `Linux` → verifică și `grep -qi microsoft /proc/version` (dacă găsește, e WSL, un Linux care trăiește în Windows). `Darwin` → macOS. `MINGW…` sau `MSYS…` → Windows cu Git Bash.
+- **PowerShell** (Windows): `$PSVersionTable.Platform` e gol sau `Win32NT` → Windows cu PowerShell.
+
+Spune-i userului într-un rând ce ai găsit și ce înseamnă, de exemplu: „Ești pe Windows, dar lucrăm în WSL, adică într-o cameră cu Linux din calculatorul tău. Comenzile de mai jos sunt pentru camera asta.”
+
+Pe toate sistemele, comenzile din tabel sunt aceleași, cu excepția instalării lui uv (coloana „Instalare”, rândul 1) și a librăriilor de sistem (doar Linux/WSL). Căile le scrii cu `/` și între ghilimele.
+
+**După ce instalezi uv**, terminalul tău nu îl vede încă (fiecare comandă pornește cu setările vechi). Până la sfârșitul instalării, pune în fața fiecărei comenzi calea lui:
+- Bash (Linux, macOS, WSL, Git Bash): `export PATH="$HOME/.local/bin:$PATH"; uv ...`
+- PowerShell: `$env:Path = "$env:USERPROFILE\.local\bin;$env:Path"; uv ...`
+La final spune-i userului să repornească Claude Code, ca uv să fie găsit direct.
 
 ## Pasul 2. Verifică totul, fără să instalezi nimic
 
@@ -36,10 +48,10 @@ Rulează toate verificările, apoi arată-i userului un tabel: componentă, ✓ 
 
 | # | Componentă | Verificare | Instalare |
 |---|---|---|---|
-| 1 | uv | `uv --version` | Linux / macOS / WSL: `curl -LsSf https://astral.sh/uv/install.sh \| sh`, apoi `source $HOME/.local/bin/env`. Windows (PowerShell): `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 \| iex"`. ~30 MB, sub un minut. |
+| 1 | uv | `uv --version` | Linux / macOS / WSL: `curl -LsSf https://astral.sh/uv/install.sh \| sh`. Windows, atât din PowerShell cât și din Git Bash: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 \| iex"`. ~30 MB, sub un minut. |
 | 2 | Python 3.10+ | `uv python find ">=3.10"` | `uv python install 3.12`. ~50 MB, într-un folder al lui uv, nu atinge Python-ul sistemului. |
 | 3 | Playwright + Chromium | `uv run --with playwright python -c "from playwright.sync_api import sync_playwright as p; pw=p().start(); pw.chromium.launch().close(); pw.stop()"` | `uv run --with playwright playwright install chromium`. ~150 MB, 1–2 minute. |
-| 4 | Librăriile de sistem (doar Linux/WSL, doar dacă 3 pică și după instalare cu „missing dependencies” sau „shared libraries”) | aceeași ca la 3 | Nu o rulezi tu. Userul scrie: `! sudo $(which uv) run --with playwright playwright install-deps chromium` și își pune singur parola. |
+| 4 | Librăriile de sistem (doar Linux/WSL; pe Windows și macOS nu există pasul ăsta; doar dacă 3 pică și după instalare cu „missing dependencies” sau „shared libraries”) | aceeași ca la 3 | Nu o rulezi tu. Userul scrie: `! sudo $(which uv) run --with playwright playwright install-deps chromium` și își pune singur parola. |
 | 5 | Plugin-ul frontend-design (opțional) | apare `frontend-design:frontend-design` în lista ta de skill-uri | Userul scrie: `/plugin install frontend-design@claude-plugins-official`, apoi `/reload-plugins`. |
 | 6 | Workflow-urile din Claude Code | ai unealta `Workflow` printre uneltele tale | Nu se instalează. Dacă lipsește: `claude update`, apoi repornește Claude Code. Dacă tot lipsește, spune-i că laboratorul are nevoie de ea și nu merge fără. |
 

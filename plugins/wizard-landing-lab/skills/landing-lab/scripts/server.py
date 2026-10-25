@@ -1,6 +1,7 @@
 """Landing lab server: intake, clarifying questions, variant rounds, feedback and the winner export.
 
-Run: uv run server.py --workspace DIR [--port 8790] [--host 127.0.0.1] [--assets DIR]
+Run: uv run server.py --workspace DIR [--port 8790] [--host 127.0.0.1] [--assets DIR] [--open]
+If the port is taken it uses the next free one; the first line printed has the real URL.
 
 Everything lives on disk in the workspace so agents and the dashboard only share files:
   brief.json, questions.json, answers.json, uploads/, rounds/<n>/{plan.json,<slug>/,feedback.json},
@@ -9,8 +10,12 @@ Everything lives on disk in the workspace so agents and the dashboard only share
 import argparse
 import io
 import json
+import platform
 import re
 import shutil
+import subprocess
+import sys
+import webbrowser
 import zipfile
 from base64 import b64decode
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -24,7 +29,7 @@ REF = re.compile(r"/(uploads|assets)/([^\"')\s?#]+)")
 
 def read_json(path):
     try:
-        return json.loads(path.read_text())
+        return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
 
@@ -75,7 +80,7 @@ class Lab:
     def save_upload(self, name, data_url):
         data = b64decode(data_url.split(",", 1)[1])
         if len(data) > MAX_UPLOAD:
-            raise ValueError("File too large")
+            raise ValueError("Fișierul e prea mare (maximum 25 MB)")
         safe = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(name).name).strip("-.") or "file"
         n = len(list(self.uploads.iterdir())) + 1
         path = self.uploads / f"{n:03d}-{safe}"
@@ -87,7 +92,7 @@ class Lab:
         target = self.ws / "winner"
         shutil.rmtree(target, ignore_errors=True)
         target.mkdir()
-        html = (source / "index.html").read_text()
+        html = (source / "index.html").read_text(encoding="utf-8")
         # The winner must open from any folder, so referenced files are copied next to it and linked relatively.
         for kind, name in set(REF.findall(html)):
             root = self.uploads if kind == "uploads" else self.assets
@@ -95,10 +100,10 @@ class Lab:
             if file and file.is_file():
                 (target / kind).mkdir(exist_ok=True)
                 shutil.copy2(file, target / kind / file.name)
-        (target / "index.html").write_text(REF.sub(lambda m: f"{m[1]}/{Path(unquote(m[2])).name}", html))
+        (target / "index.html").write_text(REF.sub(lambda m: f"{m[1]}/{Path(unquote(m[2])).name}", html), encoding="utf-8")
         meta = read_json(source / "meta.json") or {}
         winner = {"round": round_no, "slug": slug, "title": meta.get("title", slug), "path": str(target / "index.html")}
-        (self.ws / "winner.json").write_text(json.dumps(winner, indent=2))
+        (self.ws / "winner.json").write_text(json.dumps(winner, indent=2), encoding="utf-8")
 
     def winner_zip(self):
         buffer = io.BytesIO()
@@ -167,7 +172,7 @@ def make_handler(lab):
                 except (KeyError, IndexError, ValueError) as error:
                     return self.send_json({"error": str(error)}, 400)
             if path in ("/api/brief", "/api/answers"):
-                (lab.ws / f"{path.rsplit('/', 1)[1]}.json").write_text(json.dumps(body, indent=2))
+                (lab.ws / f"{path.rsplit('/', 1)[1]}.json").write_text(json.dumps(body, indent=2), encoding="utf-8")
                 return self.send_json({"ok": True})
 
             match = re.fullmatch(r"/api/rounds/(\d+)/feedback", path)
@@ -178,7 +183,7 @@ def make_handler(lab):
                         return self.send_json({"error": "Pagină necunoscută"}, 400)
                     lab.export_winner(round_no, body["chosen"])
                 # Written last: wait.py watches for this file, so the winner export must already be on disk.
-                (lab.rounds / match[1] / "feedback.json").write_text(json.dumps(body, indent=2))
+                (lab.rounds / match[1] / "feedback.json").write_text(json.dumps(body, indent=2), encoding="utf-8")
                 return self.send_json({"ok": True})
             return self.send_json({"error": "Nu există"}, 404)
 
@@ -191,7 +196,25 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=8790)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--assets", type=Path, help="existing image folder served at /assets/ (e.g. the project's public/img)")
+    parser.add_argument("--open", action="store_true", help="open the dashboard in the default browser")
     args = parser.parse_args()
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     lab = Lab(args.workspace.resolve(), args.assets.resolve() if args.assets else None)
-    print(f"Landing lab on http://localhost:{args.port} (workspace {lab.ws})", flush=True)
-    ThreadingHTTPServer((args.host, args.port), make_handler(lab)).serve_forever()
+    # On Windows SO_REUSEADDR lets a second server share a busy port silently, so only reuse addresses elsewhere.
+    ThreadingHTTPServer.allow_reuse_address = sys.platform != "win32"
+    for port in range(args.port, args.port + 50):
+        try:
+            server = ThreadingHTTPServer((args.host, port), make_handler(lab))
+            break
+        except OSError:
+            continue
+    else:
+        sys.exit(f"No free port between {args.port} and {args.port + 49}")
+    url = f"http://localhost:{port}"
+    print(f"Landing lab on {url} (workspace {lab.ws})", flush=True)
+    if args.open:
+        if "microsoft" in platform.uname().release.lower():  # WSL: the browser lives on the Windows side
+            subprocess.run(["cmd.exe", "/c", "start", "", url], stderr=subprocess.DEVNULL)
+        else:
+            webbrowser.open(url)
+    server.serve_forever()

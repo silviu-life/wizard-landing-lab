@@ -9,9 +9,12 @@ export const meta = {
 }
 
 // args: { workspace, port, skill_dir, start = 1 }  start = prima rundă care nu e construită încă
-const WS = args.workspace
-const WAIT = `${args.skill_dir}/scripts/wait.py`
-const SHOT = `uv run ${args.skill_dir}/scripts/shot.py`
+// Căile merg cu / pe orice sistem (și C:/Users/... pe Windows) și sunt puse între ghilimele în comenzi, pentru spații.
+const slash = p => String(p).replace(/\\/g, '/')
+const WS = slash(args.workspace)
+const SKILL = slash(args.skill_dir)
+const WAIT = `"${SKILL}/scripts/wait.py"`
+const SHOT = `uv run "${SKILL}/scripts/shot.py"`
 const BASE = `http://localhost:${args.port}`
 const START = args.start || 1
 
@@ -21,18 +24,21 @@ const START = args.start || 1
 async function waitFor(file, fields, phaseTitle) {
   const schema = {
     type: 'object',
-    properties: { found: { type: 'boolean', description: 'true doar dacă wait.py a afișat fișierul și a ieșit cu codul 0' }, ...fields },
+    properties: { found: { type: 'boolean', description: 'true doar dacă wait.py a afișat fișierul și a ieșit cu codul 0' }, error: { type: 'string', description: 'doar la alt cod de ieșire decât 0 sau 3: codul și mesajul de eroare' }, ...fields },
     required: ['found'],
   }
   for (let attempt = 1; ; attempt++) {
-    const r = await agent(`Rulează exact comanda asta cu unealta Bash, timeout 600000, NU în fundal:
-uv run --quiet ${WAIT} ${WS}/${file} 540
-Codul de ieșire 2 înseamnă că fișierul nu a apărut încă: rulează aceeași comandă din nou, de cel mult 6 ori în total, fără să scrii nimic între rulări.
+    const r = await agent(`Rulează exact comanda asta cu unealta de terminal pe care o ai (Bash sau PowerShell), timeout 600000, NU în fundal:
+uv run --quiet ${WAIT} "${WS}/${file}" 540
+Codul de ieșire 3 înseamnă că fișierul nu a apărut încă: rulează aceeași comandă din nou, de cel mult 6 ori în total, fără să scrii nimic între rulări.
 Codul de ieșire 0 înseamnă că a afișat JSON-ul fișierului: oprește-te și întoarce {"found": true} plus câmpurile cerute, citite din acel JSON.
-Dacă toate cele 6 rulări ies cu 2, întoarce {"found": false}.
+Dacă toate cele 6 rulări ies cu 3, întoarce {"found": false}.
+Orice alt cod de ieșire e o eroare (de exemplu uv nu găsește scriptul): oprește-te imediat și întoarce {"found": false, "error": "<codul și mesajul>"}.
 Nu crea, nu modifica și nu șterge niciun fișier.`,
       { label: `așteptare:${file}#${attempt}`, phase: phaseTitle, schema, model: 'haiku', effort: 'low' })
     if (r?.found) return r
+    // O eroare s-ar repeta la fiecare agent nou, deci oprește bucla în loc să ardă agenți.
+    if (r?.error) throw new Error(`wait.py nu merge: ${r.error}`)
     log(`Încă aștept ${file} (de aproximativ ${attempt} h)`)
   }
 }
@@ -78,7 +84,7 @@ const planSchema = ROUND => ({
 
 async function runRound(ROUND) {
   const plan = await agent(`${SOURCES}
-  Ești agentul de IDEI pentru runda ${ROUND} a unui laborator de pagini de landing. Citește întâi tot dosarul. Dacă brief.current_url e completat, fă-i capturi cu: ${SHOT} <current_url> ${WS}/rounds/${ROUND} --prefix _current- — și uită-te la ambele imagini.
+  Ești agentul de IDEI pentru runda ${ROUND} a unui laborator de pagini de landing. Citește întâi tot dosarul. Dacă brief.current_url e completat, fă-i capturi cu: ${SHOT} <current_url> "${WS}/rounds/${ROUND}" --prefix _current- — și uită-te la ambele imagini.
   ${ROUND === 1
     ? 'Runda 1: fă paginile cu adevărat diferite între ele: altă așezare, altă mecanică dominantă, alt unghi.'
     : 'Construiește pe ce i-a plăcut proprietarului, renunță la ce a respins, urmează întocmai notele rundei și fișierele de referință și nu repeta niciun slug. Spune în rezumat cum răspunde fiecare pagină la feedback.'}
@@ -95,7 +101,7 @@ async function runRound(ROUND) {
   ${CRAFT}
   Scrie DOAR în ${WS}/rounds/${ROUND}/${v.slug}/:
   1. index.html — UN singur fișier, cu CSS și JS în el. Google Fonts e permis. Imagini doar din /uploads/<nume> (fișiere cu use "page") sau /assets/<nume>, cu exact aceste căi absolute (exportul câștigătoarei le rescrie). Formularul sau acțiunea e o machetă interactivă: validează, apoi arată în pagină nota „This is a preview, nothing was sent”, tradusă în limba paginii; nu apela niciodată un API real. Încarcă skill-ul frontend-design:frontend-design pentru îndrumări de design, dacă e disponibil.
-  2. Verifică: comanda ${SHOT} ${BASE}/rounds/${ROUND}/${v.slug}/index.html ${WS}/rounds/${ROUND}/${v.slug} scrie acolo desktop.png și mobile.png și afișează erorile din consolă, imaginile lipsă și depășirea pe orizontală. Uită-te la ambele imagini. Repară și rulează din nou până nu mai sunt erori, nici imagini lipsă, overflow_px e 0 pe telefon și acțiunea e punctul central.
+  2. Verifică: comanda ${SHOT} ${BASE}/rounds/${ROUND}/${v.slug}/index.html "${WS}/rounds/${ROUND}/${v.slug}" scrie acolo desktop.png și mobile.png și afișează erorile din consolă, imaginile lipsă și depășirea pe orizontală. Uită-te la ambele imagini. Repară și rulează din nou până nu mai sunt erori, nici imagini lipsă, overflow_px e 0 pe telefon și acțiunea e punctul central.
   3. LA URMĂ scrie meta.json: {"title": "...", "idea": "<o propoziție pentru proprietar>", "mechanics": ["..."], "needs": ["<date sau backend de care are nevoie o mecanică, dacă e cazul>"]}, cu title, idea, mechanics și needs în română. meta.json marchează pagina ca gata în dashboard, deci scrie-l doar când pagina e terminată.
   Întoarce un singur rând, în română: URL-ul și ce ar trebui să știe proprietarul.`,
     { label: `construcție:${v.slug}`, phase: 'Construcție' })))

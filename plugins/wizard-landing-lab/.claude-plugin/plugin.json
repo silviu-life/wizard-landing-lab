@@ -1,6 +1,6 @@
 {
   "name": "wizard-landing-lab",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Laborator de pagini de landing: dai un brief într-un dashboard, agenții construiesc pagini în runde, tu le notezi, iar runda următoare pornește din notele tale până alegi câștigătoarea.",
   "author": {"name": "Silviu", "url": "https://github.com/silviu-life"},
   "repository": "https://github.com/silviu-life/wizard-landing-lab"

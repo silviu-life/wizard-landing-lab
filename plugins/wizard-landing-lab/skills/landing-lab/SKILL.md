@@ -22,19 +22,21 @@ Dashboard-ul și tot ce se scrie pentru proprietar (întrebări, rezumatele rund
 Întâi verifică uneltele: `uv --version` și `uv run --with playwright python -c "from playwright.sync_api import sync_playwright as p; pw=p().start(); pw.chromium.launch().close(); pw.stop()"`. Dacă una pică, oprește-te și rulează skill-ul `wizard-landing-lab:landing-lab-install` (explică și instalează, cu acordul proprietarului), apoi revino aici.
 
 1. Dosarul de lucru (`<ws>`): `<proiect>/.landing-lab/<nume-scurt>/`, dacă userul nu numește altul. Adaugă `.landing-lab/` în `.gitignore`-ul proiectului dacă nu e deja acoperit (paginile generate și fișierele încărcate sunt mari). Ca să continui un laborator mai vechi, folosește același dosar: dashboard-ul reia de unde au rămas fișierele.
-2. Un port liber (implicit 8790; verifică cu `ss -ltn`). Pornește serverul cu Bash `run_in_background`:
-   `uv run SKILL_DIR/scripts/server.py --workspace <ws> --port <port>`
-   Adaugă `--assets <dosar>` când proiectul are deja un dosar de imagini pe care paginile le pot folosi (servite la `/assets/<nume>`).
-3. Deschide `http://localhost:<port>` pentru proprietar: în WSL `/mnt/c/Windows/System32/cmd.exe /c start "" <url>`, pe macOS `open <url>`, pe Linux `xdg-open <url>`. Spune-i să completeze brief-ul acolo și treci imediat la pasul 2, fără să aștepți.
+2. Pornește serverul în fundal (Bash sau PowerShell cu `run_in_background`):
+   `uv run "SKILL_DIR/scripts/server.py" --workspace "<ws>" --open`
+   Adaugă `--assets "<dosar>"` când proiectul are deja un dosar de imagini pe care paginile le pot folosi (servite la `/assets/<nume>`). Serverul pornește de la portul 8790 și, dacă e ocupat, ia următorul liber; cu `--open` deschide singur dashboard-ul în browser (Windows, macOS, Linux, WSL). Citește din ieșirea lui primul rând, `Landing lab on http://localhost:<port>`: de acolo iei portul.
+3. Spune-i proprietarului adresa și să completeze brief-ul acolo, apoi treci imediat la pasul 2, fără să aștepți.
+
+Pe orice sistem (Windows cu Git Bash sau PowerShell, macOS, Linux, WSL) scrie căile cu `/` (pe Windows `C:/Users/...`) și pune-le între ghilimele, pentru că pot avea spații. Aceleași comenzi merg în Bash și în PowerShell.
 
 ## 2. Pornește bucla: un singur workflow, fără să aștepți tu
 
 Toată bucla (brief → întrebări → răspunsuri → rundă → feedback → rundă … → câștigătoare) e un singur workflow. Pornește-l o dată și nu aștepta nimic tu:
 
-`Workflow({scriptPath: "SKILL_DIR/scripts/lab.workflow.js", args: {workspace: "<ws>", port: <port>, skill_dir: "SKILL_DIR", start: 1}})`
+`Workflow({scriptPath: "SKILL_DIR/scripts/lab.workflow.js", args: {workspace: "<ws>", port: <portul din rândul serverului>, skill_dir: "SKILL_DIR", start: 1}})`
 
 - `start` e prima rundă care nu e construită încă: 1 la un laborator nou. Ca să reiei un laborator, folosește cel mai mare număr din `<ws>/rounds/` plus unu; bucla așteaptă întâi feedback-ul rundei dinainte.
-- Așteptarea o fac agenți mici. Fiecare rulează `uv run wait.py <fișier> 540` de până la 6 ori (~1 oră) și raportează „găsit” sau „încă nu”, iar scriptul pornește altul până apare fișierul. Un agent nou costă ~56k tokeni de context, iar o repetare în același agent e ieftină, de aceea un agent pe oră, nu unul pe apel. Așteptarea totală nu are capăt: proprietarul poate răspunde după ore sau zile. Nu da niciodată toată așteptarea unui singur agent: odată un agent a renunțat la jumătate și bucla a mers mai departe fără feedback-ul proprietarului.
+- Așteptarea o fac agenți mici. Fiecare rulează `uv run wait.py <fișier> 540` de până la 6 ori (~1 oră) și raportează „găsit”, „încă nu” (codul 3) sau o eroare, care oprește workflow-ul, iar scriptul pornește altul până apare fișierul. Un agent nou costă ~56k tokeni de context, iar o repetare în același agent e ieftină, de aceea un agent pe oră, nu unul pe apel. Așteptarea totală nu are capăt: proprietarul poate răspunde după ore sau zile. Nu da niciodată toată așteptarea unui singur agent: odată un agent a renunțat la jumătate și bucla a mers mai departe fără feedback-ul proprietarului.
 - Agentul de întrebări scrie `questions.json` (o listă goală când `brief.ask_questions` e false sau nu lipsește nimic). Bucla așteaptă `answers.json` doar când există întrebări.
 - Fazele se repetă la fiecare rundă: **Idei** (agentul de întrebări, apoi câte un agent de idei pe rundă), **Construcție** (câte un constructor pe pagină), **Așteptare** (orice așteptare după proprietar). Fiecare rundă plănuiește `brief.per_round` pagini din brief, răspunsuri, fișiere și tot feedback-ul anterior și le construiește în paralel. Dashboard-ul se umple singur, deci proprietarul nu are nevoie de niciun mesaj de la tine între runde.
 - Dacă o rundă pică la jumătate, oprește workflow-ul și pornește-l din nou cu runda aceea ca `start`: constructorii își suprascriu propriile dosare, iar dashboard-ul marchează o pagină gata doar după ce există `meta.json`.
